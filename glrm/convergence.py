@@ -1,8 +1,9 @@
 from matplotlib import pyplot as plt
 
+
 class Convergence(object):
 
-    def __init__(self, TOL = 1e-2, max_iters = 1e3):
+    def __init__(self, TOL=1e-2, max_iters=1e3):
         self.TOL = TOL
         self.max_iters = max_iters
         self.reset()
@@ -11,11 +12,12 @@ class Convergence(object):
         self.obj = []
         self.val = []
 
-    def d(self): # if converge.d == True:
+    def d(self):  # if converge.d == True:
         # return True if converged
-        if len(self) < 2: return False
-        if len(self) > self.max_iters: 
-            print "hit max iters for convergence object"
+        if len(self) < 2:
+            return False
+        if len(self) > self.max_iters:
+            print("hit max iters for convergence object")
             return True
         return abs(self.obj[-1] - self.obj[-2])/self.obj[-2] < self.TOL
 
