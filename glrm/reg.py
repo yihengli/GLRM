@@ -29,7 +29,7 @@ class ZeroReg(Reg):
 
 
 class LinearReg(Reg):
-    def reg(self, X): return self.nu*cp.norm1(X)
+    def reg(self, X): return self.nu*cp.norm(X, 1)
 
     def __str__(self): return "linear reg"
 
@@ -41,7 +41,7 @@ class QuadraticReg(Reg):
 
 
 class NonnegativeReg(Reg):
-    def reg(self, X): return 1e10*cp.sum_entries(cp.neg(X))
+    def reg(self, X): return 1e10*cp.sum(cp.neg(X))
 
     def __str__(self): return "nonnegative reg"
 

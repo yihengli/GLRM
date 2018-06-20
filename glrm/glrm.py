@@ -1,9 +1,10 @@
 from .convergence import Convergence
-from numpy import sqrt, repeat, tile, hstack, array, zeros, ones, sqrt, diag, asarray, hstack, vstack, split, cumsum
+from numpy import tile, hstack, array, zeros, ones, sqrt, diag, asarray, vstack, split, cumsum
 from numpy.random import randn
 from copy import copy
 from numpy.linalg import svd
 import cvxpy as cp
+import numpy as np
 
 # XXX does not support splitting over samples yet (only over features to
 # accommodate arbitrary losses by column).
@@ -86,20 +87,21 @@ class GLRM(object):
         self.X0, self.Y0 = X0, Y0
 
         # cvxpy problems
-        Xv, Yp = cp.Variable(m, k), [cp.Parameter(k+1, ni) for ni in ns]
-        Xp, Yv = cp.Parameter(m, k+1), [cp.Variable(k+1, ni) for ni in ns]
+        Xv, Yp = cp.Variable((m, k)), [cp.Parameter((k+1, ni)) for ni in ns]
+        Xp, Yv = cp.Parameter((m, k+1)), [cp.Variable((k+1, ni)) for ni in ns]
         Xp.value = copy(X0)
         for yj, yj0 in zip(Yp, Y0):
             yj.value = copy(yj0)
         onesM = cp.Constant(ones((m, 1)))
 
-        obj = sum(L(Aj, cp.mul_elemwise(mask, Xv*yj[:-1, :]
-                                        + onesM*yj[-1:, :]) + offset) + ry(yj[:-1, :])
+        obj = sum(L(Aj, cp.multiply(mask, Xv*yj[:-1, :]
+                                    + onesM*yj[-1:, :])
+                    + offset) + ry(yj[:-1, :])
                   for L, Aj, yj, mask, offset, ry in
                   zip(self.L, A, Yp, self.masks, self.offsets, regY)) + regX(Xv)
         pX = cp.Problem(cp.Minimize(obj))
         pY = [cp.Problem(cp.Minimize(
-            L(Aj, cp.mul_elemwise(mask, Xp*yj) + offset)
+            L(Aj, cp.multiply(mask, Xp*yj) + offset)
             + ry(yj[:-1, :]) + regX(Xp)))
             for L, Aj, yj, mask, offset, ry in zip(self.L, A, Yv, self.masks, self.offsets, regY)]
 
@@ -122,8 +124,9 @@ class GLRM(object):
                                for i in range(m) if (i, j) not in missing])
                 alpha = cp.Variable()
                 # calculate standarized energy per column
-                sv[j] = cp.Problem(cp.Minimize(
-                    L(elems, alpha*ones(elems.shape)))).solve()/len(elems)
+                sv[j] = np.sqrt(cp.Problem(cp.Minimize(
+                    cp.sum_squares(elems - alpha*ones(elems.shape))))
+                    .solve(solver=cp.SCS)/len(elems))
                 mu[j] = alpha.value
 
             offset, mask = tile(mu, (m, 1)), tile(sv, (m, 1))
@@ -175,9 +178,10 @@ class GLRM(object):
 
     def _finalize_XY(self, Xv, Yv):
         """ Multiply by std, offset by mean """
-        m, k = Xv.size
+        m, k = Xv.shape
         self.X = asarray(hstack((Xv.value, ones((m, 1)))))
-        self.Y = [asarray(yj.value)*tile(mask[0, :], (k+1, 1))
+        # self.Y = [asarray(yj.value)*tile(mask[0, :], (k+1, 1))
+        self.Y = [asarray(yj.value)*tile(np.max(mask, axis=0), (k+1, 1))
                   for yj, mask in zip(Yv, self.masks)]
         for offset, Y in zip(self.offsets, self.Y):
             Y[-1, :] += offset[0, :]
